@@ -58,6 +58,39 @@ class AiChatClient {
         }
     }
 
+    /** Lists the endpoint's models (`GET /v1/models`), newest servers first. */
+    suspend fun listModels(baseUrl: String, apiKey: String): Result<List<String>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val request = Request.Builder()
+                    .url(modelsEndpoint(baseUrl))
+                    .addHeader("Authorization", "Bearer $apiKey")
+                    .get()
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    val body = response.body?.string().orEmpty()
+                    if (!response.isSuccessful) {
+                        throw IllegalStateException(
+                            "获取模型失败（HTTP ${response.code}）：${errorMessage(body)}"
+                        )
+                    }
+                    val json = JSONObject(body)
+                    val array = json.optJSONArray("data") ?: json.optJSONArray("models")
+                        ?: JSONArray()
+                    buildList {
+                        for (index in 0 until array.length()) {
+                            val id = when (val item = array.opt(index)) {
+                                is JSONObject -> item.optString("id").ifBlank { item.optString("name") }
+                                is String -> item
+                                else -> ""
+                            }
+                            if (id.isNotBlank()) add(id)
+                        }
+                    }.distinct().sorted()
+                }
+            }
+        }
+
     /**
      * Builds the wire messages. Only the newest [AiChatConfig.historyImageRounds]
      * image-bearing user turns keep their pixels; older images become a text
@@ -160,6 +193,13 @@ class AiChatClient {
             if (value.endsWith("/chat/completions", ignoreCase = true)) return value
             val path = value.substringAfter("://", "").substringAfter('/', "")
             return if (path.isEmpty()) "$value/v1/chat/completions" else "$value/chat/completions"
+        }
+
+        /** `GET /models` next to the chat-completions endpoint, e.g. `/v1/models`. */
+        fun modelsEndpoint(raw: String): String {
+            val chat = chatCompletionsEndpoint(raw)
+            if (chat.isBlank()) return chat
+            return chat.removeSuffix("/chat/completions") + "/models"
         }
     }
 }

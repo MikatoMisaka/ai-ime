@@ -29,6 +29,22 @@ class AiChatClientTest {
     }
 
     @Test
+    fun derivesModelsEndpointFromBaseUrl() {
+        assertEquals(
+            "https://api.deepseek.com/v1/models",
+            AiChatClient.modelsEndpoint("https://api.deepseek.com")
+        )
+        assertEquals(
+            "https://api.deepseek.com/v1/models",
+            AiChatClient.modelsEndpoint("https://api.deepseek.com/v1")
+        )
+        assertEquals(
+            "https://example.com/proxy/v1/models",
+            AiChatClient.modelsEndpoint("https://example.com/proxy/v1/chat/completions")
+        )
+    }
+
+    @Test
     fun keepsOnlyRecentImageTurns() {
         val config = AiChatConfig(
             baseUrl = "https://example.com/v1",
