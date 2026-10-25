@@ -1,0 +1,36 @@
+# Gradle / Android build output
+.gradle/
+.kotlin/
+build/
+app/build/
+app/.cxx/
+captures/
+*.apk
+*.aab
+*.ap_
+dist/
+release/
+
+# Local machine configuration (never publish)
+local.properties
+keystore.properties
+signing-password.local.txt
+*.jks
+*.keystore
+
+# IDE
+.idea/
+*.iml
+*.hprof
+
+# Logs and temporary files
+*.log
+build-*.log
+build-log*.txt
+test-log.txt
+tmp_*.json
+
+# OS
+.DS_Store
+Thumbs.db
+._*

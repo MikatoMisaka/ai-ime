@@ -1,0 +1,78 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 截图识别回复：应用内相册九宫格读取照片。 -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <!-- Landscape fallback: keeps the IME surface alive on HyperOS while its
+         system input window is being recreated during rotation. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application
+        android:allowBackup="false"
+        android:usesCleartextTraffic="false"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="AI 输入法"
+        android:theme="@style/Theme.Weike">
+        <!-- 启动入口：只保留输入法启用与 AI 配置。 -->
+        <activity
+            android:name=".SimpleSettingsActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Weike">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".LicenseActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Weike" />
+
+        <!-- 相册选图中转页：直接读 MediaStore 展示九宫格，选完广播给 IME。 -->
+        <activity
+            android:name=".ImagePickerActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+            android:excludeFromRecents="true" />
+
+        <!-- 内置 AI 对话页：从键盘模式栏进入，回答插入当前输入框。 -->
+        <activity
+            android:name=".ai.AiChatActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.Weike.Chat" />
+
+        <service
+            android:name=".ime.WeikeInputMethodService"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
+            android:label="AI 输入法"
+            android:permission="android.permission.BIND_INPUT_METHOD"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@xml/method" />
+        </service>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+</manifest>

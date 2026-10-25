@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- In-app update APKs land in getExternalFilesDir("updates"). -->
+    <external-files-path
+        name="updates"
+        path="updates/" />
+    <!-- One-tap screenshot frames for 截图识别回复. -->
+    <external-files-path
+        name="screenshots"
+        path="screenshots/" />
+</paths>

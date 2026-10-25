@@ -1,0 +1,27 @@
+<resources>
+    <style name="Theme.Weike" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">@color/weike_accent</item>
+        <item name="android:navigationBarColor">@color/weike_background</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+
+    <!-- 开屏页：全屏沉浸式启动图，浅色导航栏配图的浅蓝底。 -->
+    <style name="Theme.Weike.Splash" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowBackground">@drawable/splash_background</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:navigationBarColor">#F5F9FF</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+
+    <!-- AI 对话：半屏浮层，上面透出宿主 App，下面贴着键盘。 -->
+    <style name="Theme.Weike.Chat" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

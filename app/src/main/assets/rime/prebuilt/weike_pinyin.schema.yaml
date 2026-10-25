@@ -1,0 +1,51 @@
+__build_info:
+  rime_version: 1.17.0
+  timestamps:
+    default: 1784198043
+    default.custom: 0
+    weike_pinyin.custom: 0
+    weike_pinyin.schema: 1783950035
+engine:
+  filters:
+    - uniquifier
+  processors:
+    - speller
+    - selector
+    - navigator
+    - express_editor
+  segmentors:
+    - matcher
+    - abc_segmentor
+    - fallback_segmentor
+  translators:
+    - script_translator
+menu:
+  page_size: 9
+schema:
+  name: "维刻拼音"
+  schema_id: weike_pinyin
+  version: 2026.07.07
+speller:
+  algebra:
+    - "abbrev/^([a-z]).+$/$1/"
+    - "abbrev/^([zcs]h).+$/$1/"
+    - "derive/^([nl])ue$/$1ve/"
+    - "derive/^([jqxy])u$/$1v/"
+    - "derive/un$/uen/"
+    - "derive/ui$/uei/"
+    - "derive/iu$/iou/"
+    - "derive/([aeiou])ng$/$1gn/"
+  alphabet: zyxwvutsrqponmlkjihgfedcba
+  delimiter: " '"
+switches:
+  - name: ascii_mode
+    reset: 0
+    states: ["中文", "西文"]
+translator:
+  dictionary: weike_pinyin
+  enable_completion: true
+  enable_encoder: true
+  enable_sentence: true
+  enable_user_dict: true
+  initial_quality: 1.2
+  max_phrase_length: 8

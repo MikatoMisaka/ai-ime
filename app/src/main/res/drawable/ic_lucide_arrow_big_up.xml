@@ -1,0 +1,6 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <!-- Solid shift arrow in the style of mainstream IMEs; tint supplies the color. -->
+    <path android:fillColor="#FF000000"
+        android:pathData="M12,2.8 L19.1,9.9 Q19.5,10.3 18.9,10.3 L15.2,10.3 L15.2,19.4 Q15.2,20.2 14.4,20.2 L9.6,20.2 Q8.8,20.2 8.8,19.4 L8.8,10.3 L5.1,10.3 Q4.5,10.3 4.9,9.9 Z" />
+</vector>

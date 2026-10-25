@@ -1,0 +1,7 @@
+<input-method xmlns:android="http://schemas.android.com/apk/res/android"
+    android:settingsActivity="com.weike.ime.SimpleSettingsActivity">
+    <subtype
+        android:imeSubtypeLocale="zh_CN"
+        android:imeSubtypeMode="keyboard"
+        android:label="AI 输入法" />
+</input-method>

@@ -1,0 +1,26 @@
+AI 输入法（AI IME）
+Copyright (C) 2026 AI IME contributors
+
+This is a modified version of LianAi Keyboard (恋爱键盘), which is itself
+derived from Vertick IME.
+
+Modification notice (GPL-3.0 section 5a), 2026-10:
+- Removed subscription, membership, account and purchase features, together
+  with the built-in "帮你回 / 超会说" entry points and their backend clients.
+- Added a user-configurable OpenAI-compatible AI chat panel that accepts images
+  as conversation context.
+- Chinese keyboard fixed to the 26-key layout; the number row is hidden and key
+  geometry is derived from screen width.
+- Application id changed to com.weike.aikeyboard; UI text and launcher entry
+  changed.
+
+恋爱键盘（LianAi Keyboard）
+Copyright (C) 2026 LianAi Keyboard contributors
+
+This project is a derivative work based on Vertick IME.
+Copyright (C) 2026 Vertick contributors
+
+This project is distributed under the GNU General Public License, version 3
+or later. See LICENSE for the complete license text.
+
+Third-party notices and source provenance are documented in THIRD_PARTY_NOTICES.md.
