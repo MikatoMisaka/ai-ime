@@ -33,7 +33,8 @@ object AiSettingsDialog {
             value: String,
             hint: String,
             password: Boolean = false,
-            multiline: Boolean = false
+            multiline: Boolean = false,
+            numeric: Boolean = false
         ): EditText = EditText(activity).apply {
             setText(value)
             this.hint = hint
@@ -42,6 +43,7 @@ object AiSettingsDialog {
             setHintTextColor(Color.rgb(0xBB, 0xB0, 0xB4))
             inputType = when {
                 password -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+                numeric -> InputType.TYPE_CLASS_NUMBER
                 multiline -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 else -> InputType.TYPE_CLASS_TEXT
             }
@@ -67,10 +69,11 @@ object AiSettingsDialog {
             value: String,
             hint: String,
             password: Boolean = false,
-            multiline: Boolean = false
+            multiline: Boolean = false,
+            numeric: Boolean = false
         ): EditText {
             label(title)
-            return createEdit(value, hint, password, multiline).also { edit ->
+            return createEdit(value, hint, password, multiline, numeric).also { edit ->
                 container.addView(edit, LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT
@@ -137,6 +140,13 @@ object AiSettingsDialog {
             }
         }
 
+        val maxTokens = field(
+            "最大输出 tokens",
+            config.maxTokens.toString(),
+            "默认 8192；思考过程也计入这个上限",
+            numeric = true
+        )
+
         val systemPrompt = field("系统提示词", config.systemPrompt, "", multiline = true)
         val imagePrompt = field(
             "只发图片时的默认提示词",
@@ -154,7 +164,9 @@ object AiSettingsDialog {
                     apiKey = apiKey.text.toString(),
                     model = model.text.toString(),
                     systemPrompt = systemPrompt.text.toString(),
-                    defaultImagePrompt = imagePrompt.text.toString()
+                    defaultImagePrompt = imagePrompt.text.toString(),
+                    maxTokens = maxTokens.text.toString().toIntOrNull()
+                        ?: AiChatSettings.DEFAULT_MAX_TOKENS
                 )
                 onSaved(settings.config())
             }

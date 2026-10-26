@@ -18,7 +18,9 @@ data class AiChatConfig(
     val systemPrompt: String = AiChatSettings.DEFAULT_SYSTEM_PROMPT,
     val defaultImagePrompt: String = AiChatSettings.DEFAULT_IMAGE_PROMPT,
     val maxImages: Int = AiChatSettings.DEFAULT_MAX_IMAGES,
-    val historyImageRounds: Int = AiChatSettings.DEFAULT_HISTORY_IMAGE_ROUNDS
+    val historyImageRounds: Int = AiChatSettings.DEFAULT_HISTORY_IMAGE_ROUNDS,
+    /** Output cap. Reasoning tokens count toward it on thinking models. */
+    val maxTokens: Int = AiChatSettings.DEFAULT_MAX_TOKENS
 ) {
     fun isComplete(): Boolean =
         baseUrl.isNotBlank() && apiKey.isNotBlank() && model.isNotBlank()
@@ -38,7 +40,9 @@ class AiChatSettings(context: Context) {
         defaultImagePrompt = preferences.getString(KEY_IMAGE_PROMPT, DEFAULT_IMAGE_PROMPT)
             .orEmpty().ifBlank { DEFAULT_IMAGE_PROMPT },
         maxImages = preferences.getInt(KEY_MAX_IMAGES, DEFAULT_MAX_IMAGES),
-        historyImageRounds = preferences.getInt(KEY_HISTORY_ROUNDS, DEFAULT_HISTORY_IMAGE_ROUNDS)
+        historyImageRounds = preferences.getInt(KEY_HISTORY_ROUNDS, DEFAULT_HISTORY_IMAGE_ROUNDS),
+        maxTokens = preferences.getInt(KEY_MAX_TOKENS, DEFAULT_MAX_TOKENS)
+            .coerceIn(MIN_MAX_TOKENS, MAX_MAX_TOKENS)
     )
 
     fun save(
@@ -46,7 +50,8 @@ class AiChatSettings(context: Context) {
         apiKey: String,
         model: String,
         systemPrompt: String,
-        defaultImagePrompt: String
+        defaultImagePrompt: String,
+        maxTokens: Int = DEFAULT_MAX_TOKENS
     ) {
         preferences.edit()
             .putString(KEY_BASE_URL, baseUrl.trim())
@@ -59,6 +64,7 @@ class AiChatSettings(context: Context) {
                 KEY_IMAGE_PROMPT,
                 defaultImagePrompt.trim().ifBlank { DEFAULT_IMAGE_PROMPT }
             )
+            .putInt(KEY_MAX_TOKENS, maxTokens.coerceIn(MIN_MAX_TOKENS, MAX_MAX_TOKENS))
             .apply()
         secrets.write(SECRET_API_KEY, apiKey.trim())
     }
@@ -74,6 +80,11 @@ class AiChatSettings(context: Context) {
         const val DEFAULT_IMAGE_PROMPT =
             "请结合这张图片回答我的问题；如果图片里有文字，请完整、准确地提取出来。"
 
+        /** Output cap. Reasoning tokens count toward it on thinking models. */
+        const val DEFAULT_MAX_TOKENS = 8192
+        const val MIN_MAX_TOKENS = 256
+        const val MAX_MAX_TOKENS = 32768
+
         private const val FILE_NAME = "ai_chat_settings"
         private const val SECRET_API_KEY = "ai_chat_api_key"
         private const val KEY_BASE_URL = "ai_chat_base_url"
@@ -82,5 +93,6 @@ class AiChatSettings(context: Context) {
         private const val KEY_IMAGE_PROMPT = "ai_chat_image_prompt"
         private const val KEY_MAX_IMAGES = "ai_chat_max_images"
         private const val KEY_HISTORY_ROUNDS = "ai_chat_history_rounds"
+        private const val KEY_MAX_TOKENS = "ai_chat_max_tokens"
     }
 }

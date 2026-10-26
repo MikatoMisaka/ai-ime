@@ -10,6 +10,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
+import android.os.SystemClock
 import android.text.InputType
 import android.util.Base64
 import android.view.Gravity
@@ -32,7 +33,10 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -55,6 +59,15 @@ class AiChatActivity : AppCompatActivity() {
     private val attachments = mutableListOf<ChatImage>()
     private var conversationId: String = java.util.UUID.randomUUID().toString()
     private val expandedReasoning = mutableSetOf<String>()
+
+    private var streamJob: Job? = null
+    private var streamingId: String? = null
+    private var liveBubble: TextView? = null
+    private var liveReasoning: TextView? = null
+    private var liveReasoningToggle: TextView? = null
+    private val streamedContent = StringBuilder()
+    private val streamedReasoning = StringBuilder()
+    private var lastStreamScrollAt = 0L
     private lateinit var panel: LinearLayout
 
     private lateinit var messagesContainer: LinearLayout
@@ -276,7 +289,7 @@ class AiChatActivity : AppCompatActivity() {
             setTextColor(Color.WHITE)
             background = rounded(C_ACCENT, 22)
             isClickable = true
-            setOnClickListener { send() }
+            setOnClickListener { if (sending) stopStreaming() else send() }
             layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).apply {
                 leftMargin = dp(8)
             }
@@ -298,6 +311,9 @@ class AiChatActivity : AppCompatActivity() {
     // ----------------------------------------------------------- messages ----
 
     private fun renderMessages() {
+        liveBubble = null
+        liveReasoning = null
+        liveReasoningToggle = null
         messagesContainer.removeAllViews()
         if (messages.isEmpty()) {
             messagesContainer.addView(TextView(this).apply {
@@ -314,6 +330,9 @@ class AiChatActivity : AppCompatActivity() {
     }
 
     private fun messageView(message: ChatMessage): View {
+        val streaming = message.id == streamingId
+        val displayText = if (streaming) streamedContent.toString() else message.text
+        val reasoningText = if (streaming) streamedReasoning.toString() else message.reasoning
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(0, dp(5), 0, dp(5))
@@ -329,13 +348,15 @@ class AiChatActivity : AppCompatActivity() {
             })
         }
 
-        if (message.role == "assistant" && message.reasoning.isNotBlank()) {
-            row.addView(reasoningToggle(message))
-            if (message.id in expandedReasoning) row.addView(reasoningBody(message))
+        if (message.role == "assistant" && reasoningText.isNotBlank()) {
+            row.addView(reasoningToggle(message, reasoningText, streaming))
+            if (message.id in expandedReasoning) {
+                row.addView(reasoningBody(reasoningText, streaming))
+            }
         }
 
-        if (message.role == "assistant" && !message.failed &&
-            message.text.isBlank() && message.reasoning.isNotBlank()
+        if (message.role == "assistant" && !message.failed && !streaming &&
+            displayText.isBlank() && reasoningText.isNotBlank()
         ) {
             row.addView(TextView(this).apply {
                 text = "（模型没有返回正文）"
@@ -345,10 +366,10 @@ class AiChatActivity : AppCompatActivity() {
             })
         } else {
             val bubble = TextView(this).apply {
-                text = message.text
+                text = displayText
                 textSize = 15f
                 setTextColor(if (message.failed) C_ERROR else C_TEXT)
-                setTextIsSelectable(!message.failed)
+                setTextIsSelectable(!message.failed && !streaming)
                 setLineSpacing(dp(3).toFloat(), 1f)
                 setPadding(dp(14), dp(10), dp(14), dp(10))
                 background = rounded(
@@ -365,10 +386,11 @@ class AiChatActivity : AppCompatActivity() {
                     ViewGroup.LayoutParams.WRAP_CONTENT
                 )
             }
+            if (streaming) liveBubble = bubble
             row.addView(bubble)
         }
 
-        if (message.role == "assistant" && !message.failed && message.text.isNotBlank()) {
+        if (message.role == "assistant" && !message.failed && !streaming && displayText.isNotBlank()) {
             val actions = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.START
@@ -382,11 +404,16 @@ class AiChatActivity : AppCompatActivity() {
         return row
     }
 
-    private fun reasoningToggle(message: ChatMessage): TextView {
+    private fun reasoningToggle(
+        message: ChatMessage,
+        reasoningText: String,
+        streaming: Boolean
+    ): TextView {
         val expanded = message.id in expandedReasoning
+        val suffix = if (streaming) " · 生成中" else ""
         return TextView(this).apply {
             text = (if (expanded) "▾ 思考过程" else "▸ 思考过程") +
-                "（${message.reasoning.length} 字）"
+                "（${reasoningText.length} 字）$suffix"
             textSize = 12f
             setTextColor(C_MUTED)
             setPadding(dp(4), dp(2), dp(4), dp(2))
@@ -399,18 +426,20 @@ class AiChatActivity : AppCompatActivity() {
                 }
                 renderMessages()
             }
+            if (streaming) liveReasoningToggle = this
         }
     }
 
-    private fun reasoningBody(message: ChatMessage): TextView = TextView(this).apply {
-        text = message.reasoning
+    private fun reasoningBody(reasoningText: String, streaming: Boolean): TextView = TextView(this).apply {
+        text = reasoningText
         textSize = 12f
         setTextColor(C_MUTED)
-        setTextIsSelectable(true)
+        setTextIsSelectable(!streaming)
         setLineSpacing(dp(2).toFloat(), 1f)
         setPadding(dp(12), dp(8), dp(12), dp(8))
         background = rounded(Color.rgb(0xF4, 0xF1, 0xF2), 12)
         maxWidth = (resources.displayMetrics.widthPixels * 0.84f).toInt()
+        if (streaming) liveReasoning = this
     }
 
     // ------------------------------------------------------------- images ----
@@ -491,36 +520,7 @@ class AiChatActivity : AppCompatActivity() {
         renderAttachments()
         renderMessages()
         persistHistory()
-
-        sending = true
-        sendButton.isEnabled = false
-        sendButton.alpha = 0.5f
-        statusLabel.text = "正在思考…"
-        statusLabel.visibility = View.VISIBLE
-
-        lifecycleScope.launch {
-            client.complete(config, messages)
-                .onSuccess { completion ->
-                    messages += ChatMessage(
-                        "assistant",
-                        completion.content,
-                        reasoning = completion.reasoning
-                    )
-                }
-                .onFailure {
-                    messages += ChatMessage(
-                        "assistant",
-                        it.message ?: "请求失败，请检查网络或模型配置",
-                        failed = true
-                    )
-                }
-            sending = false
-            sendButton.isEnabled = true
-            sendButton.alpha = 1f
-            statusLabel.visibility = View.GONE
-            renderMessages()
-            persistHistory()
-        }
+        startStreaming(config)
     }
 
     private fun resend(question: String) {
@@ -533,34 +533,123 @@ class AiChatActivity : AppCompatActivity() {
         messages += ChatMessage("user", question)
         renderMessages()
         persistHistory()
+        startStreaming(config)
+    }
+
+    /** Streams the reply into a placeholder turn so text appears as it arrives. */
+    private fun startStreaming(config: AiChatConfig) {
+        val requestMessages = messages.toList()
+        val placeholder = ChatMessage("assistant", "")
+        streamingId = placeholder.id
+        streamedContent.setLength(0)
+        streamedReasoning.setLength(0)
+        lastStreamScrollAt = 0L
+        messages += placeholder
         sending = true
-        sendButton.isEnabled = false
-        statusLabel.text = "正在思考…"
+        updateSendButton()
+        statusLabel.text = "正在生成…"
         statusLabel.visibility = View.VISIBLE
-        lifecycleScope.launch {
-            client.complete(config, messages)
-                .onSuccess { completion ->
-                    messages += ChatMessage(
-                        "assistant",
-                        completion.content,
-                        reasoning = completion.reasoning
-                    )
+        renderMessages()
+
+        streamJob = lifecycleScope.launch {
+            var failure: Throwable? = null
+            var cancelled = false
+            try {
+                client.stream(config, requestMessages).collect { event ->
+                    if (event.reasoning.isNotEmpty()) {
+                        streamedReasoning.append(event.reasoning)
+                        updateStreamingViews()
+                    }
+                    if (event.content.isNotEmpty()) {
+                        streamedContent.append(event.content)
+                        updateStreamingViews()
+                    }
+                    scrollStreamingIfNeeded()
                 }
-                .onFailure {
-                    messages += ChatMessage("assistant", it.message ?: "请求失败", failed = true)
-                }
-            sending = false
-            sendButton.isEnabled = true
-            statusLabel.visibility = View.GONE
-            renderMessages()
-            persistHistory()
+            } catch (cancel: CancellationException) {
+                cancelled = true
+            } catch (error: Throwable) {
+                failure = error
+            }
+            finishStream(failure, cancelled)
         }
+    }
+
+    private fun stopStreaming() {
+        streamJob?.cancel()
+    }
+
+    private fun updateSendButton() {
+        sendButton.text = if (sending) "■" else "↑"
+        sendButton.alpha = 1f
+    }
+
+    private fun updateStreamingViews() {
+        val content = streamedContent.toString()
+        liveBubble?.text = content
+        if (streamedReasoning.isNotEmpty()) {
+            if (liveReasoningToggle == null) {
+                // First reasoning delta: rebuild once so the toggle shows up.
+                renderMessages()
+            } else {
+                liveReasoningToggle?.text =
+                    (if (liveReasoning != null) "▾ 思考过程" else "▸ 思考过程") +
+                        "（${streamedReasoning.length} 字） · 生成中"
+                liveReasoning?.text = streamedReasoning.toString()
+            }
+        }
+    }
+
+    private fun scrollStreamingIfNeeded() {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastStreamScrollAt < 120L) return
+        lastStreamScrollAt = now
+        scrollView.post { scrollView.fullScroll(View.FOCUS_DOWN) }
+    }
+
+    private fun finishStream(failure: Throwable?, cancelled: Boolean) {
+        val id = streamingId ?: return
+        streamingId = null
+        val content = streamedContent.toString()
+        val reasoning = streamedReasoning.toString()
+        val index = messages.indexOfFirst { it.id == id }
+        if (index >= 0) {
+            if (content.isBlank() && reasoning.isBlank()) {
+                if (failure != null) {
+                    messages[index] = ChatMessage(
+                        role = "assistant",
+                        text = failure.message ?: "请求失败",
+                        failed = true,
+                        id = id
+                    )
+                } else {
+                    messages.removeAt(index)
+                }
+            } else {
+                val suffix = when {
+                    failure != null -> "\n\n（生成中断：${failure.message}）"
+                    cancelled -> "\n\n（已停止）"
+                    else -> ""
+                }
+                messages[index] = ChatMessage(
+                    role = "assistant",
+                    text = content + suffix,
+                    reasoning = reasoning,
+                    id = id
+                )
+            }
+        }
+        sending = false
+        updateSendButton()
+        statusLabel.visibility = View.GONE
+        if (!isFinishing && !isDestroyed) renderMessages()
+        persistHistory()
     }
 
     /** Saves the current conversation; called on each exchange and when leaving. */
     private fun persistHistory() {
         if (messages.isEmpty()) return
-        val snapshot = messages.map {
+        val snapshot = messages.filterNot { it.id == streamingId }.map {
             HistoryMessage(
                 role = it.role,
                 text = it.text,
@@ -588,6 +677,7 @@ class AiChatActivity : AppCompatActivity() {
     }
 
     private fun startNewConversation() {
+        stopStreaming()
         persistHistory()
         messages.clear()
         attachments.clear()

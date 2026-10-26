@@ -27,3 +27,9 @@ data class ChatCompletion(
     val content: String,
     val reasoning: String = ""
 )
+
+/** One SSE delta: either answer text, reasoning text, or both. */
+data class ChatStreamEvent(
+    val content: String = "",
+    val reasoning: String = ""
+)

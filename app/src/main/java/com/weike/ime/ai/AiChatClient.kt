@@ -1,6 +1,11 @@
 package com.weike.ime.ai
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -35,7 +40,7 @@ class AiChatClient {
             val payload = JSONObject().apply {
                 put("model", config.model)
                 put("stream", false)
-                put("max_tokens", 4096)
+                put("max_tokens", config.maxTokens)
                 put("messages", buildMessages(config, messages))
             }
             val request = Request.Builder()
@@ -59,6 +64,55 @@ class AiChatClient {
             }
         }
     }
+
+    /**
+     * Streams the reply as SSE deltas. Reasoning and answer arrive in the same
+     * delta object on thinking models, so both are surfaced as they land.
+     */
+    fun stream(config: AiChatConfig, messages: List<ChatMessage>): Flow<ChatStreamEvent> = flow {
+        val payload = JSONObject().apply {
+            put("model", config.model)
+            put("stream", true)
+            put("max_tokens", config.maxTokens)
+            put("messages", buildMessages(config, messages))
+        }
+        val request = Request.Builder()
+            .url(chatCompletionsEndpoint(config.baseUrl))
+            .addHeader("Authorization", "Bearer ${config.apiKey}")
+            .addHeader("Content-Type", "application/json")
+            .post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        val call = client.newCall(request)
+        currentCoroutineContext()[Job]?.invokeOnCompletion { call.cancel() }
+        call.execute().use { response ->
+            if (!response.isSuccessful) {
+                val body = response.body?.string().orEmpty()
+                throw IllegalStateException(
+                    "请求失败（HTTP ${response.code}）：${errorMessage(body)}"
+                )
+            }
+            val source = response.body?.source()
+                ?: throw IllegalStateException("模型没有返回响应体")
+            while (true) {
+                val line = source.readUtf8Line() ?: break
+                if (!line.startsWith("data:")) continue
+                val data = line.substring(5).trim()
+                if (data.isEmpty()) continue
+                if (data == "[DONE]") break
+                val json = runCatching { JSONObject(data) }.getOrNull() ?: continue
+                val delta = json.optJSONArray("choices")
+                    ?.optJSONObject(0)
+                    ?.optJSONObject("delta")
+                    ?: continue
+                val content = textOf(delta.opt("content"))
+                val reasoning = textOf(delta.opt("reasoning_content"))
+                    .ifBlank { textOf(delta.opt("reasoning")) }
+                if (content.isNotEmpty() || reasoning.isNotEmpty()) {
+                    emit(ChatStreamEvent(content = content, reasoning = reasoning))
+                }
+            }
+        }
+    }.flowOn(Dispatchers.IO)
 
     /** Lists the endpoint's models (`GET /v1/models`), newest servers first. */
     suspend fun listModels(baseUrl: String, apiKey: String): Result<List<String>> =
