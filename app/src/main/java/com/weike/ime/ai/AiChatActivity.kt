@@ -49,9 +49,11 @@ import java.io.ByteArrayOutputStream
 class AiChatActivity : AppCompatActivity() {
 
     private val settings by lazy { AiChatSettings(this) }
+    private val historyStore by lazy { ChatHistoryStore(this) }
     private val client = AiChatClient()
     private val messages = mutableListOf<ChatMessage>()
     private val attachments = mutableListOf<ChatImage>()
+    private var conversationId: String = java.util.UUID.randomUUID().toString()
     private lateinit var panel: LinearLayout
 
     private lateinit var messagesContainer: LinearLayout
@@ -216,11 +218,10 @@ class AiChatActivity : AppCompatActivity() {
         })
         header.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
         header.addView(actionLabel("设置") { showSettingsDialog() })
-        header.addView(actionLabel("清空") {
-            if (messages.isEmpty()) return@actionLabel
-            messages.clear()
-            renderMessages()
+        header.addView(actionLabel("历史") {
+            startActivity(android.content.Intent(this, com.weike.ime.ChatHistoryActivity::class.java))
         })
+        header.addView(actionLabel("新对话") { startNewConversation() })
         header.addView(actionLabel("关闭") { finish() })
         return header
     }
@@ -441,6 +442,7 @@ class AiChatActivity : AppCompatActivity() {
         attachments.clear()
         renderAttachments()
         renderMessages()
+        persistHistory()
 
         sending = true
         sendButton.isEnabled = false
@@ -463,6 +465,7 @@ class AiChatActivity : AppCompatActivity() {
             sendButton.alpha = 1f
             statusLabel.visibility = View.GONE
             renderMessages()
+            persistHistory()
         }
     }
 
@@ -475,6 +478,7 @@ class AiChatActivity : AppCompatActivity() {
         }
         messages += ChatMessage("user", question)
         renderMessages()
+        persistHistory()
         sending = true
         sendButton.isEnabled = false
         statusLabel.text = "正在思考…"
@@ -489,7 +493,51 @@ class AiChatActivity : AppCompatActivity() {
             sendButton.isEnabled = true
             statusLabel.visibility = View.GONE
             renderMessages()
+            persistHistory()
         }
+    }
+
+    /** Saves the current conversation; called on each exchange and when leaving. */
+    private fun persistHistory() {
+        if (messages.isEmpty()) return
+        val snapshot = messages.map {
+            HistoryMessage(
+                role = it.role,
+                text = it.text,
+                imageCount = it.images.size,
+                failed = it.failed
+            )
+        }
+        val title = messages.firstOrNull { it.role == "user" }
+            ?.text
+            ?.trim()
+            ?.take(28)
+            .orEmpty()
+            .ifBlank { "未命名对话" }
+        val conversation = HistoryConversation(
+            id = conversationId,
+            title = title,
+            updatedAt = System.currentTimeMillis(),
+            messages = snapshot
+        )
+        val store = historyStore
+        lifecycleScope.launch(Dispatchers.IO) {
+            runCatching { store.upsert(conversation) }
+        }
+    }
+
+    private fun startNewConversation() {
+        persistHistory()
+        messages.clear()
+        attachments.clear()
+        conversationId = java.util.UUID.randomUUID().toString()
+        renderAttachments()
+        renderMessages()
+    }
+
+    override fun onStop() {
+        persistHistory()
+        super.onStop()
     }
 
     private fun insert(text: String) {

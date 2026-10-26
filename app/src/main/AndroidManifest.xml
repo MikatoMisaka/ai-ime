@@ -36,6 +36,11 @@
             android:exported="false"
             android:theme="@style/Theme.Weike" />
 
+        <activity
+            android:name=".ChatHistoryActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Weike" />
+
         <!-- 相册选图中转页：直接读 MediaStore 展示九宫格，选完广播给 IME。 -->
         <activity
             android:name=".ImagePickerActivity"
