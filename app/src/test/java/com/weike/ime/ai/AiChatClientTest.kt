@@ -45,6 +45,27 @@ class AiChatClientTest {
     }
 
     @Test
+    fun parsesReasoningFromProviderFields() {
+        val withString = org.json.JSONObject(
+            """
+            {"choices":[{"message":{"content":"答案","reasoning_content":"先算 A，再算 B"}}]}
+            """.trimIndent()
+        )
+        val parsed = AiChatClient().parseAssistantMessage(withString)
+        assertEquals("答案", parsed.content)
+        assertEquals("先算 A，再算 B", parsed.reasoning)
+
+        val withArray = org.json.JSONObject(
+            """
+            {"choices":[{"message":{"content":"","reasoning":[{"text":"第一步"},{"text":"第二步"}]}}]}
+            """.trimIndent()
+        )
+        val arrayParsed = AiChatClient().parseAssistantMessage(withArray)
+        assertEquals("", arrayParsed.content)
+        assertEquals("第一步第二步", arrayParsed.reasoning)
+    }
+
+    @Test
     fun keepsOnlyRecentImageTurns() {
         val config = AiChatConfig(
             baseUrl = "https://example.com/v1",

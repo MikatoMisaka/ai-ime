@@ -30,12 +30,12 @@ class AiChatClient {
     suspend fun complete(
         config: AiChatConfig,
         messages: List<ChatMessage>
-    ): Result<String> = withContext(Dispatchers.IO) {
+    ): Result<ChatCompletion> = withContext(Dispatchers.IO) {
         runCatching {
             val payload = JSONObject().apply {
                 put("model", config.model)
                 put("stream", false)
-                put("max_tokens", 2048)
+                put("max_tokens", 4096)
                 put("messages", buildMessages(config, messages))
             }
             val request = Request.Builder()
@@ -51,9 +51,11 @@ class AiChatClient {
                         "请求失败（HTTP ${response.code}）：${errorMessage(body)}"
                     )
                 }
-                val content = extractContent(JSONObject(body))
-                if (content.isBlank()) throw IllegalStateException("模型返回了空内容")
-                content
+                val completion = parseAssistantMessage(JSONObject(body))
+                if (completion.content.isBlank() && completion.reasoning.isBlank()) {
+                    throw IllegalStateException("模型返回了空内容")
+                }
+                completion
             }
         }
     }
@@ -149,21 +151,31 @@ class AiChatClient {
         return array
     }
 
-    private fun extractContent(json: JSONObject): String {
-        val choices = json.optJSONArray("choices") ?: return ""
-        val message = choices.optJSONObject(0)?.optJSONObject("message") ?: return ""
-        val content = message.opt("content")
-        return when (content) {
-            is String -> content.trim()
-            is JSONArray -> buildString {
-                for (index in 0 until content.length()) {
-                    val part = content.optJSONObject(index) ?: continue
-                    val value = part.optString("text")
-                    if (value.isNotBlank()) append(value)
-                }
-            }.trim()
-            else -> ""
-        }
+    /**
+     * Reads both the answer and the reasoning block. Providers disagree on the
+     * field name (`reasoning_content` for DeepSeek/Qwen/GLM, `reasoning` for a
+     * few gateways) and on the shape (plain string or array of parts).
+     */
+    internal fun parseAssistantMessage(json: JSONObject): ChatCompletion {
+        val choices = json.optJSONArray("choices") ?: return ChatCompletion("", "")
+        val message = choices.optJSONObject(0)?.optJSONObject("message")
+            ?: return ChatCompletion("", "")
+        val content = textOf(message.opt("content"))
+        val reasoning = textOf(message.opt("reasoning_content"))
+            .ifBlank { textOf(message.opt("reasoning")) }
+        return ChatCompletion(content = content, reasoning = reasoning)
+    }
+
+    private fun textOf(value: Any?): String = when (value) {
+        is String -> value.trim()
+        is JSONArray -> buildString {
+            for (index in 0 until value.length()) {
+                val part = value.optJSONObject(index) ?: continue
+                val text = part.optString("text").ifBlank { part.optString("content") }
+                if (text.isNotBlank()) append(text)
+            }
+        }.trim()
+        else -> ""
     }
 
     private fun errorMessage(body: String): String {

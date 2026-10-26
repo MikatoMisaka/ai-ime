@@ -15,7 +15,15 @@ data class ChatMessage(
     val text: String,
     val images: List<ChatImage> = emptyList(),
     val failed: Boolean = false,
+    /** Model reasoning, when the provider returns `reasoning_content`. */
+    val reasoning: String = "",
     val id: String = UUID.randomUUID().toString()
 ) {
     val hasImages: Boolean get() = images.isNotEmpty()
 }
+
+/** Parsed assistant response: the answer plus an optional thinking block. */
+data class ChatCompletion(
+    val content: String,
+    val reasoning: String = ""
+)

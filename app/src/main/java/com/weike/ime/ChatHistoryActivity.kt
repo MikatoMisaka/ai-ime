@@ -108,12 +108,26 @@ class ChatHistoryActivity : AppCompatActivity() {
                 ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply { bottomMargin = dp(10) }
         }
-        card.addView(TextView(this).apply {
+        val titleRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        titleRow.addView(TextView(this).apply {
             text = conversation.title.ifBlank { "未命名对话" }
             textSize = 15f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(C_TEXT)
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         })
+        titleRow.addView(TextView(this).apply {
+            text = "删除"
+            textSize = 12f
+            setTextColor(C_ACCENT)
+            setPadding(dp(12), dp(4), 0, dp(4))
+            isClickable = true
+            setOnClickListener { confirmDelete(conversation) }
+        })
+        card.addView(titleRow)
         val time = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
             .format(Date(conversation.updatedAt))
         card.addView(TextView(this).apply {
@@ -129,7 +143,8 @@ class ChatHistoryActivity : AppCompatActivity() {
         val transcript = conversation.messages.joinToString("\n\n") { message ->
             val who = if (message.role == "user") "我" else "AI"
             val images = if (message.imageCount > 0) "［${message.imageCount} 张图片］\n" else ""
-            "$who：$images${message.text}"
+            val thinking = if (message.reasoning.isNotBlank()) "【思考】${message.reasoning}\n" else ""
+            "$who：$images$thinking${message.text}"
         }
         AlertDialog.Builder(this)
             .setTitle(conversation.title.ifBlank { "未命名对话" })

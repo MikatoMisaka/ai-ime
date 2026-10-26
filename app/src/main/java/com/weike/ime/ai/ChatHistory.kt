@@ -10,7 +10,8 @@ data class HistoryMessage(
     val role: String,
     val text: String,
     val imageCount: Int = 0,
-    val failed: Boolean = false
+    val failed: Boolean = false,
+    val reasoning: String = ""
 )
 
 data class HistoryConversation(
@@ -74,7 +75,8 @@ class ChatHistoryStore(context: Context) {
                                             role = item.optString("role"),
                                             text = item.optString("text").take(MAX_TEXT),
                                             imageCount = item.optInt("images"),
-                                            failed = item.optBoolean("failed")
+                                            failed = item.optBoolean("failed"),
+                                            reasoning = item.optString("reasoning").take(MAX_REASONING)
                                         )
                                     )
                                 }
@@ -98,6 +100,7 @@ class ChatHistoryStore(context: Context) {
                             .put("text", message.text.take(MAX_TEXT))
                             .put("images", message.imageCount)
                             .put("failed", message.failed)
+                            .put("reasoning", message.reasoning.take(MAX_REASONING))
                     )
                 }
                 array.put(
@@ -122,5 +125,6 @@ class ChatHistoryStore(context: Context) {
         private const val MAX_CONVERSATIONS = 30
         private const val MAX_MESSAGES = 40
         private const val MAX_TEXT = 2000
+        private const val MAX_REASONING = 4000
     }
 }

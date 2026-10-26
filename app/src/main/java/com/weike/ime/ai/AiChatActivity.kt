@@ -54,6 +54,7 @@ class AiChatActivity : AppCompatActivity() {
     private val messages = mutableListOf<ChatMessage>()
     private val attachments = mutableListOf<ChatImage>()
     private var conversationId: String = java.util.UUID.randomUUID().toString()
+    private val expandedReasoning = mutableSetOf<String>()
     private lateinit var panel: LinearLayout
 
     private lateinit var messagesContainer: LinearLayout
@@ -328,28 +329,44 @@ class AiChatActivity : AppCompatActivity() {
             })
         }
 
-        val bubble = TextView(this).apply {
-            text = message.text
-            textSize = 15f
-            setTextColor(if (message.failed) C_ERROR else C_TEXT)
-            setTextIsSelectable(!message.failed)
-            setLineSpacing(dp(3).toFloat(), 1f)
-            setPadding(dp(14), dp(10), dp(14), dp(10))
-            background = rounded(
-                when {
-                    message.failed -> Color.rgb(0xFD, 0xEE, 0xEE)
-                    message.role == "user" -> C_USER_BUBBLE
-                    else -> C_PANEL
-                },
-                16
-            )
-            maxWidth = (resources.displayMetrics.widthPixels * 0.84f).toInt()
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
+        if (message.role == "assistant" && message.reasoning.isNotBlank()) {
+            row.addView(reasoningToggle(message))
+            if (message.id in expandedReasoning) row.addView(reasoningBody(message))
         }
-        row.addView(bubble)
+
+        if (message.role == "assistant" && !message.failed &&
+            message.text.isBlank() && message.reasoning.isNotBlank()
+        ) {
+            row.addView(TextView(this).apply {
+                text = "（模型没有返回正文）"
+                textSize = 13f
+                setTextColor(C_MUTED)
+                setPadding(dp(4), dp(2), 0, 0)
+            })
+        } else {
+            val bubble = TextView(this).apply {
+                text = message.text
+                textSize = 15f
+                setTextColor(if (message.failed) C_ERROR else C_TEXT)
+                setTextIsSelectable(!message.failed)
+                setLineSpacing(dp(3).toFloat(), 1f)
+                setPadding(dp(14), dp(10), dp(14), dp(10))
+                background = rounded(
+                    when {
+                        message.failed -> Color.rgb(0xFD, 0xEE, 0xEE)
+                        message.role == "user" -> C_USER_BUBBLE
+                        else -> C_PANEL
+                    },
+                    16
+                )
+                maxWidth = (resources.displayMetrics.widthPixels * 0.84f).toInt()
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            }
+            row.addView(bubble)
+        }
 
         if (message.role == "assistant" && !message.failed && message.text.isNotBlank()) {
             val actions = LinearLayout(this).apply {
@@ -363,6 +380,37 @@ class AiChatActivity : AppCompatActivity() {
             row.addView(actions)
         }
         return row
+    }
+
+    private fun reasoningToggle(message: ChatMessage): TextView {
+        val expanded = message.id in expandedReasoning
+        return TextView(this).apply {
+            text = (if (expanded) "▾ 思考过程" else "▸ 思考过程") +
+                "（${message.reasoning.length} 字）"
+            textSize = 12f
+            setTextColor(C_MUTED)
+            setPadding(dp(4), dp(2), dp(4), dp(2))
+            isClickable = true
+            setOnClickListener {
+                if (expanded) {
+                    expandedReasoning.remove(message.id)
+                } else {
+                    expandedReasoning.add(message.id)
+                }
+                renderMessages()
+            }
+        }
+    }
+
+    private fun reasoningBody(message: ChatMessage): TextView = TextView(this).apply {
+        text = message.reasoning
+        textSize = 12f
+        setTextColor(C_MUTED)
+        setTextIsSelectable(true)
+        setLineSpacing(dp(2).toFloat(), 1f)
+        setPadding(dp(12), dp(8), dp(12), dp(8))
+        background = rounded(Color.rgb(0xF4, 0xF1, 0xF2), 12)
+        maxWidth = (resources.displayMetrics.widthPixels * 0.84f).toInt()
     }
 
     // ------------------------------------------------------------- images ----
@@ -452,7 +500,13 @@ class AiChatActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             client.complete(config, messages)
-                .onSuccess { messages += ChatMessage("assistant", it) }
+                .onSuccess { completion ->
+                    messages += ChatMessage(
+                        "assistant",
+                        completion.content,
+                        reasoning = completion.reasoning
+                    )
+                }
                 .onFailure {
                     messages += ChatMessage(
                         "assistant",
@@ -485,7 +539,13 @@ class AiChatActivity : AppCompatActivity() {
         statusLabel.visibility = View.VISIBLE
         lifecycleScope.launch {
             client.complete(config, messages)
-                .onSuccess { messages += ChatMessage("assistant", it) }
+                .onSuccess { completion ->
+                    messages += ChatMessage(
+                        "assistant",
+                        completion.content,
+                        reasoning = completion.reasoning
+                    )
+                }
                 .onFailure {
                     messages += ChatMessage("assistant", it.message ?: "请求失败", failed = true)
                 }
@@ -505,7 +565,8 @@ class AiChatActivity : AppCompatActivity() {
                 role = it.role,
                 text = it.text,
                 imageCount = it.images.size,
-                failed = it.failed
+                failed = it.failed,
+                reasoning = it.reasoning
             )
         }
         val title = messages.firstOrNull { it.role == "user" }
