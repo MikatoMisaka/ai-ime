@@ -22,6 +22,8 @@ object Rime {
     @JvmStatic external fun selectRimeSchema(schemaId: String): Boolean
     @JvmStatic external fun getRimeCandidates(startIndex: Int, limit: Int): Array<CandidateProto>
     @JvmStatic external fun selectRimeCandidate(index: Int, global: Boolean): Boolean
+    @JvmStatic external fun setRimeOption(option: String, value: Boolean)
+    @JvmStatic external fun getRimeOption(option: String): Boolean
 
     // Required by the native notification callback. Deployment state is polled by the Kotlin adapter.
     @JvmStatic fun handleRimeMessage(type: Int, params: Array<Any>) = Unit

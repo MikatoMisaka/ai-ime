@@ -111,6 +111,14 @@ class RimePinyinDecoder(context: Context) : PinyinDecoder {
             }
             val ready = startup.getOrDefault(false)
             isReady = ready
+            if (ready) {
+                // Older Rime data can carry full_shape=true; force half-width so
+                // ASCII input never comes out as full-width letters.
+                runCatching {
+                    Rime.setRimeOption("full_shape", false)
+                    Log.i(TAG, "full_shape=${Rime.getRimeStatus().isFullShape}")
+                }
+            }
             statusText = if (ready) {
                 "Rime-Ice \u57fa\u7840\u8bcd\u5178\u5df2\u5c31\u7eea"
             } else {
@@ -211,7 +219,12 @@ class RimePinyinDecoder(context: Context) : PinyinDecoder {
         selectedSpelling = ""
         if (!isReady) return@nativeState false
         val schema = if (layout == ChineseKeyboardLayout.NINE_KEY) T9_SCHEMA_ID else SCHEMA_ID
-        Rime.selectRimeSchema(schema).also { if (it) Rime.clearRimeComposition() }
+        Rime.selectRimeSchema(schema).also {
+            if (it) {
+                runCatching { Rime.setRimeOption("full_shape", false) }
+                Rime.clearRimeComposition()
+            }
+        }
     }
 
     override suspend fun syncProfessionalTerms(

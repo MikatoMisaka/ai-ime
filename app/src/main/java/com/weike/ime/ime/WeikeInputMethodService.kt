@@ -3090,25 +3090,48 @@ class WeikeInputMethodService : InputMethodService(), KeyboardActions {
     ) {
         if (text.isBlank()) return
         if (mode == KeyboardMode.VOICE) {
-            insertPolishDraft(text)
+            insertPolishDraft(toHalfWidthLatin(text))
             polishOptions = emptyList()
             voiceState = VoiceUiState.Idle
             render()
             return
         }
+        val value = toHalfWidthLatin(text)
         val connection = targetConnection ?: return
         if (connection !== currentInputConnection) return
         val batchStarted = connection.beginBatchEdit()
         try {
-            if (connection.setComposingText(text, 1)) {
+            if (connection.setComposingText(value, 1)) {
                 connection.finishComposingText()
             } else {
-                connection.commitText(text, 1)
+                connection.commitText(value, 1)
             }
         } finally {
             if (batchStarted) connection.endBatchEdit()
         }
-        if (schedulePrediction) schedulePredictions(text, connection)
+        if (schedulePrediction) schedulePredictions(value, connection)
+    }
+
+    /**
+     * 全角拉丁字母/数字转半角。Rime 的 `full_shape` 若被旧数据打开，英文会
+     * 以全角输出；这里再兜一层，保证正文始终是 ASCII。
+     */
+    private fun toHalfWidthLatin(text: String): String {
+        if (text.isEmpty()) return text
+        var changed = false
+        val builder = StringBuilder(text.length)
+        for (character in text) {
+            val code = character.code
+            val converted = when (code) {
+                in 0xFF21..0xFF3A, in 0xFF41..0xFF5A, in 0xFF10..0xFF19 -> {
+                    changed = true
+                    (code - 0xFEE0).toChar()
+                }
+                else -> character
+            }
+            builder.append(converted)
+        }
+        return if (changed) builder.toString() else text
     }
 
     private fun commitPinyinCandidateAndPredict(text: String, targetConnection: InputConnection?) =
@@ -3117,9 +3140,10 @@ class WeikeInputMethodService : InputMethodService(), KeyboardActions {
     private fun commitTextAndPredict(text: String, appendSpace: Boolean = false) {
         if (text.isBlank()) return
         val connection = currentInputConnection ?: return
-        connection.commitText(text, 1)
+        val value = toHalfWidthLatin(text)
+        connection.commitText(value, 1)
         if (appendSpace) connection.commitText(" ", 1)
-        schedulePredictions(text, connection)
+        schedulePredictions(value, connection)
     }
 
     private fun schedulePredictions(text: String, connection: InputConnection) {
